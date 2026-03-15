@@ -8,6 +8,8 @@
 #include <termios.h>
 #endif
 
-void Initialize();
-void MoveCursor(uint8_t x, uint8_t y);
-void CleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition);
+#define GTUI_CLEAR_SCREEN() system("\033[J")
+
+void gtuiInitialize();
+void gtuiMoveCursor(uint8_t x, uint8_t y);
+void gtuiCleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition);

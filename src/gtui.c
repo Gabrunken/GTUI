@@ -7,11 +7,7 @@
 HANDLE outputHandle;
 CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
 
-#define CLEAR_SCREEN() system("cls")
-
 #else
-
-#define CLEAR_SCREEN() system("clear")
 
 #endif
 
@@ -19,7 +15,7 @@ CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
 {\
     if (!condition)\
     {\
-        CLEAR_SCREEN();\
+        GTUI_CLEAR_SCREEN();\
         printf("Assertion failed at line %d and file %s\n Details: %s\n", __LINE__, __FILE__, message);\
         exit(1);\
     }\
@@ -27,7 +23,7 @@ CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
 
 static char initialized;
 
-void Initialize()
+void gtuiInitialize()
 {
     ASSERT(!initialized, "you've already initialized GTUI.");
     initialized = 1;
@@ -38,7 +34,7 @@ void Initialize()
     #endif
 }
 
-void MoveCursor(uint8_t x, uint8_t y)
+void gtuiMoveCursor(uint8_t x, uint8_t y)
 {
     ASSERT(initialized, "you must first initialize GTUI.");
 
@@ -48,7 +44,7 @@ void MoveCursor(uint8_t x, uint8_t y)
     #endif
 }
 
-void CleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition)
+void gtuiCleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition)
 {
     ASSERT(initialized, "you must first initialize GTUI.");
     ASSERT(count, "count must be greater than 1.");
