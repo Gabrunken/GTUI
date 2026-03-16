@@ -126,13 +126,5 @@ void gtuiMoveCursor(uint8_t x, uint8_t y)
    	printf("%s", str);
 }
 
-void gtuiCleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition)
-{
-    GTUI_ASSERT(_initialized, "you must first initialize GTUI.");
-    GTUI_ASSERT(count, "count must be greater than 1.");
-
-	printf("TODO");
-}
-
 #endif
 
