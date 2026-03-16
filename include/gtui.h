@@ -73,7 +73,6 @@
 void gtuiInitialize();
 
 void gtuiMoveCursor(uint8_t x, uint8_t y);
-void gtuiCleanCharacters(uint8_t x, uint8_t y, uint8_t count, char resetCursorPosition);
 
 #ifdef GTUI_IMPLEMENTATION
 
