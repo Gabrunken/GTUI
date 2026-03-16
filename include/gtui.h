@@ -6,11 +6,17 @@
 #include <windows.h>
 #elif __APPLE__ || __linux__ || __unix__ //__APPLE__ for macos and apple products, __linux__ for linux based systems (also android), __unix__ for everything else. Note that on clang __unix__ is not defined for historical reasons, even tho it is unix.
 #include <termios.h>
+#include <sys/ioctl.h>
 #else
 #error "Unknown operating system detected."
 #endif
 
-/* == ESCAPE SEQUENCES (use with printf == */
+/* == ESCAPE SEQUENCES (use with printf) == */
+
+//Takes strings
+#define GTUI_ESC_MOVE_CURSOR(x, y) "\033["x";"y"H"
+
+#define GTUI_ESC_START "\033[0;0H"
 #define GTUI_ESC_UP "\033[1A"
 #define GTUI_ESC_DOWN "\033[1B"
 #define GTUI_ESC_RIGHT "\033[1C"
@@ -69,10 +75,14 @@
 #define GTUI_ESC_FG_BRIGHT_WHITE "\033[97m"
 #define GTUI_ESC_BG_BRIGHT_WHITE "\033[107m"
 
+#define GTUI_ESC_ENABLE_CURSOR "\033[?25h"
+#define GTUI_ESC_DISABLE_CURSOR "\033[?25l"
+
 /* == API == */
 void gtuiInitialize();
 
 void gtuiMoveCursor(uint8_t x, uint8_t y);
+void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY);
 
 #ifdef GTUI_IMPLEMENTATION
 
@@ -82,6 +92,7 @@ void gtuiMoveCursor(uint8_t x, uint8_t y);
 
 #ifdef _WIN32
 HANDLE outputHandle;
+HANDLE inputHandle;
 CONSOLE_SCREEN_BUFFER_INFO consoleScreenBufferInfo;
 #endif
 
@@ -103,26 +114,64 @@ void gtuiInitialize()
 
     #ifdef _WIN32
     outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    inputHandle = GetStdHandle(STD_INPUT_HANDLE);
+
+    DWORD dwOutMode = 0;
+    DWORD dwInMode = 0;
+
     //This lets me have the same code, for terminal input and output, for every OS
-    SetConsoleMode(outputHandle, ENABLE_VIRTUAL_TERMINAL_PROCESSING); //Enable ANSI escape codes for windows terminal for output (color, cursor position)
-    SetConsoleMode(outputHandle, ENABLE_VIRTUAL_TERMINAL_INPUT); //Same thing as above, only for user input
+    if (GetConsoleMode(outputHandle, &dwOutMode))
+    {
+        dwOutMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        dwOutMode |= DISABLE_NEWLINE_AUTO_RETURN;
+        SetConsoleMode(outputHandle, dwOutMode);
+    }
+
+    if (GetConsoleMode(inputHandle, &dwInMode))
+    {
+        dwInMode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+        dwInMode &= ~ENABLE_LINE_INPUT;
+        dwInMode &= ~ENABLE_ECHO_INPUT;
+        SetConsoleMode(inputHandle, dwInMode);
+    }
     #endif
 }
 
-void gtuiMoveCursor(uint8_t x, uint8_t y)
+void gtuiMoveCursor(uint16_t x, uint16_t y)
 {
     GTUI_ASSERT(_initialized, "you must first initialize GTUI.");
 
-	if (x > 99 || y > 99)
+	if (x > 999 || y > 999)
    	{
-   		printf("gtuiMoveCursor: x and y must not be greater than 99.\n\tyou passed: x = %d, y = %d\n", x, y);
+   		printf("gtuiMoveCursor: x and y must not be greater than 999.\n\tyou passed: x = %d, y = %d\n", x, y);
    		return;
    	}
 
-   	char str[12];
-   	snprintf(str, sizeof(str), "\033[%d;%dH", y, x);
+   	char str[20];
+   	snprintf(str, sizeof(str), "\033[%d;%dH\0", y, x);
 
    	printf("%s", str);
+}
+
+void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY)
+{
+    GTUI_ASSERT(_initialized, "you must first initialize GTUI.");
+    GTUI_ASSERT(outX && outY, "gtuiGetConsoleSize: outX and outY must be valid pointers.");
+
+    #ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+
+    *outX = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    *outY = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+    #else
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+
+        *outX = w.ws_col;
+        *outY = w.ws_row;
+    #endif
 }
 
 #endif
