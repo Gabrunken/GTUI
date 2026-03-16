@@ -1,1 +1,0 @@
-gcc -c .\src\gtui_impl.c -Iinclude
