@@ -1,1 +1,1 @@
-gcc -c .\src\gtui.c -Iinclude
+gcc -c .\src\gtui_impl.c -Iinclude
