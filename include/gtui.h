@@ -85,7 +85,7 @@
 #define GTUI_ESC_ENABLE_CURSOR  "\033[?25h"
 #define GTUI_ESC_DISABLE_CURSOR "\033[?25l"
 
-#define GTUI_ESC_ALT_SCREEN_ENABLE  "\033[?1049h" //Enable alternative screen buffer (basically write on a new canvas)
+#define GTUI_ESC_ALT_SCREEN_ENABLE  "\033[?1049h" //Enable alternative screen buffer (basically write on a new SCROLL-LESS canvas (no scroll history, simple 2d grid))
 #define GTUI_ESC_ALT_SCREEN_DISABLE "\033[?1049l" //Disable the alternative screen buffer (restore the previous buffer)
 
 typedef enum
