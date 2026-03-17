@@ -85,21 +85,24 @@
 #define GTUI_ESC_ENABLE_CURSOR  "\033[?25h"
 #define GTUI_ESC_DISABLE_CURSOR "\033[?25l"
 
+#define GTUI_ESC_ALT_SCREEN_ENABLE  "\033[?1049h" //Enable alternative screen buffer (basically write on a new canvas)
+#define GTUI_ESC_ALT_SCREEN_DISABLE "\033[?1049l" //Disable the alternative screen buffer (restore the previous buffer)
+
 typedef enum
 {
     GTUI_EVENT_KEY,
-    
+
     GTUI_EVENT_BACKSPACE, //Even tho it should be a KEY, it is a special one, not printable. The same applies for the others in the block below
     GTUI_EVENT_ESCAPE,
-    
+
     GTUI_EVENT_RESIZE,
-    
+
     GTUI_EVENT_ESC_UP,
     GTUI_EVENT_ESC_DOWN,
     GTUI_EVENT_ESC_RIGHT,
     GTUI_EVENT_ESC_LEFT,
 
-    GTUI_EVENT_NULL //If there was no event in this cycle (returned on unknown events or null reads on non-blocking input cycles). 
+    GTUI_EVENT_NULL //If there was no event in this cycle (returned on unknown events or null reads on non-blocking input cycles).
 } GTUIEventType;
 
 typedef struct
@@ -194,7 +197,7 @@ void gtuiInitialize()
         dwInMode &= ~ENABLE_PROCESSED_INPUT;
         SetConsoleMode(_inputHandle, dwInMode);
     }
-    
+
     #else
     //Enable Raw Mode for unix
     tcgetattr(STDIN_FILENO, &originalTermiosConf);
@@ -294,12 +297,12 @@ GTUIEvent gtuiGetInput()
                 _read(_fileno(stdin), sequence, 1);
 
                 if (sequence[0] == '[' &&
-                    WaitForSingleObject(_inputHandle, 5 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 && 
+                    WaitForSingleObject(_inputHandle, 5 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 &&
                     _kbhit())
                 {
                     _read(_fileno(stdin), sequence + 1, 1);
                 }
-                
+
                 switch (sequence[1])
                 {
                 case 'A': return (GTUIEvent) { GTUI_EVENT_ESC_UP,    0 };
