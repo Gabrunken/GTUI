@@ -124,7 +124,10 @@ void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY);
 
 GTUIEvent gtuiGetInput();
 
-void gtuiSetBlockingInput(char block); //Do you want to enable blocking input?
+//Do you want to enable blocking input?
+//tick is the blocking milliseconds that the input function waits even if non-blocking input is enabled
+//to prevent too much cpu usage.
+void gtuiSetBlockingInput(char block, uint16_t tick);
 
 #ifdef __cplusplus
 }
@@ -165,6 +168,7 @@ static struct termios originalTermiosConf;
 
 static char _isInputBlocking = 1;
 static char _initialized;
+static uint16_t _nonBlockingInputDelay;
 
 void gtuiInitialize()
 {
@@ -267,9 +271,11 @@ void gtuiTerminate()
     _initialized = 0;
 }
 
-void gtuiSetBlockingInput(char block)
+void gtuiSetBlockingInput(char block, uint16_t tick)
 {
     //Windows will manage this directly in the event polling function
+
+    _nonBlockingInputDelay = tick;
 
     if (_isInputBlocking == block)
         return;
@@ -288,7 +294,7 @@ GTUIEvent gtuiGetInput()
     //_kbhit might have stored in its buffer some chars that Windows event queue has already cleared, because _kbhit could've grabbed it all in 1 operation while the actual bytes might be more.
     if (!_kbhit())
     {
-        if (WaitForSingleObject(_inputHandle, _isInputBlocking ? INFINITE : 0) != WAIT_OBJECT_0)
+        if (WaitForSingleObject(_inputHandle, _isInputBlocking ? INFINITE : _nonBlockingInputDelay) != WAIT_OBJECT_0)
         {
             return (GTUIEvent) { GTUI_EVENT_NULL, 0 };
         }
@@ -304,13 +310,13 @@ GTUIEvent gtuiGetInput()
         if (c == '\033')
         {
             //If there is another character in the stream
-            if (WaitForSingleObject(_inputHandle, 5 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 && _kbhit())
+            if (WaitForSingleObject(_inputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 && _kbhit())
             {
                 char sequence[2] = { 0 };
                 _read(_fileno(stdin), sequence, 1);
 
                 if (sequence[0] == '[' &&
-                    WaitForSingleObject(_inputHandle, 5 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 &&
+                    WaitForSingleObject(_inputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 &&
                     _kbhit())
                 {
                     _read(_fileno(stdin), sequence + 1, 1);
