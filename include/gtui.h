@@ -3,8 +3,6 @@
 #include <stdint.h>
 #ifdef _WIN32
 #include <windows.h>
-#include <conio.h>
-#include <io.h>
 #elif __APPLE__ || __linux__ || __unix__ //__APPLE__ for macos and apple products, __linux__ for linux based systems (also android), __unix__ for everything else. Note that on clang __unix__ is not defined for historical reasons, even tho it is unix.
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -93,6 +91,7 @@ typedef enum
     GTUI_EVENT_KEY,
 
     GTUI_EVENT_BACKSPACE, //Even tho it should be a KEY, it is a special one, not printable. The same applies for the others in the block below
+    GTUI_EVENT_ENTER,
     GTUI_EVENT_ESCAPE,
 
     GTUI_EVENT_RESIZE,
@@ -137,6 +136,11 @@ void gtuiSetBlockingInput(char block); //Do you want to enable blocking input?
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <conio.h>
+#include <io.h>
+#endif
 
 #define GTUI_ASSERT(condition, message)\
 {\
@@ -195,9 +199,12 @@ void gtuiInitialize()
         dwInMode &= ~ENABLE_LINE_INPUT;
         dwInMode &= ~ENABLE_ECHO_INPUT;
         dwInMode &= ~ENABLE_PROCESSED_INPUT;
+        dwInMode |= ENABLE_EXTENDED_FLAGS;
+        dwInMode &= ~ENABLE_QUICK_EDIT_MODE;
         SetConsoleMode(_inputHandle, dwInMode);
     }
 
+    _setmode(_fileno(stdin), _O_BINARY); //Removing CRLF windows mode and keeping the stream to binary data
     #else
     //Enable Raw Mode for unix
     tcgetattr(STDIN_FILENO, &originalTermiosConf);
@@ -278,8 +285,14 @@ void gtuiSetBlockingInput(char block)
 GTUIEvent gtuiGetInput()
 {
     #ifdef _WIN32
-    if (WaitForSingleObject(_inputHandle, _isInputBlocking ? INFINITE : 0) != WAIT_OBJECT_0) //No event
-        return (GTUIEvent) { GTUI_EVENT_NULL, 0 };
+    //_kbhit might have stored in its buffer some chars that Windows event queue has already cleared, because _kbhit could've grabbed it all in 1 operation while the actual bytes might be more.
+    if (!_kbhit())
+    {
+        if (WaitForSingleObject(_inputHandle, _isInputBlocking ? INFINITE : 0) != WAIT_OBJECT_0)
+        {
+            return (GTUIEvent) { GTUI_EVENT_NULL, 0 };
+        }
+    }
 
     //The event is a key
     if (_kbhit())
@@ -307,8 +320,8 @@ GTUIEvent gtuiGetInput()
                 {
                 case 'A': return (GTUIEvent) { GTUI_EVENT_ESC_UP,    0 };
                 case 'B': return (GTUIEvent) { GTUI_EVENT_ESC_DOWN,  0 };
-                case 'C': return (GTUIEvent) { GTUI_EVENT_ESC_RIGHT,  0 };
-                case 'D': return (GTUIEvent) { GTUI_EVENT_ESC_LEFT, 0 };
+                case 'C': return (GTUIEvent) { GTUI_EVENT_ESC_RIGHT, 0 };
+                case 'D': return (GTUIEvent) { GTUI_EVENT_ESC_LEFT,  0 };
                 default:  return (GTUIEvent) { GTUI_EVENT_NULL,      0 }; //Unknown escape sequence
                 }
             }
@@ -322,7 +335,13 @@ GTUIEvent gtuiGetInput()
 
         else
         {
-            return (GTUIEvent) { GTUI_EVENT_KEY, c };
+            switch (c)
+            {
+            case '\r': return (GTUIEvent) { GTUI_EVENT_ENTER,     0 };
+            case 127:  return (GTUIEvent) { GTUI_EVENT_BACKSPACE, 0 };
+            case 8:    return (GTUIEvent) { GTUI_EVENT_BACKSPACE, 0 };
+            default:   return (GTUIEvent) { GTUI_EVENT_KEY,       c };
+            }
         }
     }
 
