@@ -143,6 +143,9 @@ void gtuiSetBlockingInput(char block, uint16_t tick);
 #include <fcntl.h>
 #include <conio.h>
 #include <io.h>
+#else
+#include <unistd.h>
+#include <string.h>
 #endif
 
 #define GTUI_ASSERT(condition, message)\
