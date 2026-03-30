@@ -13,11 +13,19 @@
 /* == ESCAPE SEQUENCES (write them to the stdout) == */
 
 //Takes strings
+#ifdef __APPLE__
+#define GTUI_ESC_MOVE_CURSOR(x, y)         "\033[" x ";" y "H"
+#define GTUI_ESC_TRANSLATE_CURSOR_UP(y)    "\033[" y "A"
+#define GTUI_ESC_TRANSLATE_CURSOR_DOWN(y)  "\033[" y "B"
+#define GTUI_ESC_TRANSLATE_CURSOR_RIGHT(x) "\033[" x "C"
+#define GTUI_ESC_TRANSLATE_CURSOR_LEFT(x)  "\033[" x "D"
+#else
 #define GTUI_ESC_MOVE_CURSOR(x, y)         "\033["x";"y"H"
 #define GTUI_ESC_TRANSLATE_CURSOR_UP(y)    "\033["y"A"
 #define GTUI_ESC_TRANSLATE_CURSOR_DOWN(y)  "\033["y"B"
 #define GTUI_ESC_TRANSLATE_CURSOR_RIGHT(x) "\033["x"C"
 #define GTUI_ESC_TRANSLATE_CURSOR_LEFT(x)  "\033["x"D"
+#endif
 
 #define GTUI_ESC_START      "\033[1;1H"
 #define GTUI_ESC_UP         "\033[1A"
@@ -119,7 +127,8 @@ extern "C"
 void gtuiInitialize();
 void gtuiTerminate();
 
-void gtuiMoveCursor(uint16_t x, uint16_t y);
+//Creates an escape sequence to move the cursor at the specified position, copying it in the out parameter.
+void gtuiGetMoveCursorCode(uint16_t x, uint16_t y, char* out);
 void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY);
 
 GTUIEvent gtuiGetInput();
@@ -158,49 +167,49 @@ void gtuiSetBlockingInput(char block, uint16_t tick);
 }
 
 #ifdef _WIN32
-static HANDLE _outputHandle;
-static HANDLE _inputHandle;
-static CONSOLE_SCREEN_BUFFER_INFO _consoleScreenBufferInfo;
+static HANDLE _gtuiOutputHandle;
+static HANDLE _gtuiInputHandle;
+static CONSOLE_SCREEN_BUFFER_INFO _gtuiConsoleScreenBufferInfo;
 
 //I'll use these to reset the console state once the program ends.
-static DWORD _originalOutputMode;
-static DWORD _originalInputMode;
+static DWORD _gtuiOriginalOutputMode;
+static DWORD _gtuiOriginalInputMode;
 #else
 static struct termios originalTermiosConf;
 #endif
 
-static char _isInputBlocking = 1;
-static char _initialized;
-static uint16_t _nonBlockingInputDelay;
+static char _gtuiIsInputBlocking = 1;
+static char _gtuiInitialized;
+static uint16_t _gtuiNonBlockingInputDelay;
 
 void gtuiInitialize()
 {
-    GTUI_ASSERT(!_initialized, "you've already initialized GTUI.");
-    _initialized = 1;
+    GTUI_ASSERT(!_gtuiInitialized, "you've already initialized GTUI.");
+    _gtuiInitialized = 1;
 
     #ifdef _WIN32
-    _outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    _inputHandle = GetStdHandle(STD_INPUT_HANDLE);
+    _gtuiOutputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    _gtuiInputHandle = GetStdHandle(STD_INPUT_HANDLE);
 
     DWORD dwOutMode = 0;
     DWORD dwInMode = 0;
 
     //Making this terminal behave like a VT100 which supports Escape Codes and is the de facto standard of terminals, so its super portable.
     //This lets me have the same code, for terminal input and output, for every OS
-    if (GetConsoleMode(_outputHandle, &dwOutMode))
+    if (GetConsoleMode(_gtuiOutputHandle, &dwOutMode))
     {
-        _originalOutputMode = dwOutMode;
+        _gtuiOriginalOutputMode = dwOutMode;
 
         dwOutMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         dwOutMode |= DISABLE_NEWLINE_AUTO_RETURN;
-        SetConsoleMode(_outputHandle, dwOutMode);
+        SetConsoleMode(_gtuiOutputHandle, dwOutMode);
     }
 
     //Enable Raw Mode (no input buffering)
     //Everything will be read with _read() in Windows and read() in unix
-    if (GetConsoleMode(_inputHandle, &dwInMode))
+    if (GetConsoleMode(_gtuiInputHandle, &dwInMode))
     {
-        _originalInputMode = dwInMode;
+        _gtuiOriginalInputMode = dwInMode;
 
         dwInMode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
         dwInMode &= ~ENABLE_LINE_INPUT;
@@ -208,10 +217,14 @@ void gtuiInitialize()
         dwInMode &= ~ENABLE_PROCESSED_INPUT;
         dwInMode |= ENABLE_EXTENDED_FLAGS;
         dwInMode &= ~ENABLE_QUICK_EDIT_MODE;
-        SetConsoleMode(_inputHandle, dwInMode);
+        SetConsoleMode(_gtuiInputHandle, dwInMode);
     }
 
     _setmode(_fileno(stdin), _O_BINARY); //Removing CRLF windows mode and keeping the stream to binary data
+
+    //Use UTF8
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
     #else
     //Enable Raw Mode for unix
     tcgetattr(STDIN_FILENO, &originalTermiosConf);
@@ -225,9 +238,10 @@ void gtuiInitialize()
     #endif
 }
 
-void gtuiMoveCursor(uint16_t x, uint16_t y)
+void gtuiGetMoveCursorCode(uint16_t x, uint16_t y, char* out)
 {
-    GTUI_ASSERT(_initialized, "you must first initialize GTUI.");
+    GTUI_ASSERT(_gtuiInitialized, "you must first initialize GTUI.");
+    GTUI_ASSERT(out, "gtuiMoveCursor: out parameter must not be NULL.");
 
 	if (x > 999 || y > 999)
    	{
@@ -238,19 +252,19 @@ void gtuiMoveCursor(uint16_t x, uint16_t y)
    	char str[20];
    	snprintf(str, sizeof(str), "\033[%d;%dH\0", y + 1, x + 1);
 
-   	fwrite(str, 1, strlen(str), stdout);
+   	memcpy(out, str, strlen(str));
 }
 
 void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY)
 {
-    GTUI_ASSERT(_initialized, "you must first initialize GTUI.");
+    GTUI_ASSERT(_gtuiInitialized, "you must first initialize GTUI.");
     GTUI_ASSERT(outX && outY, "gtuiGetConsoleSize: outX and outY must be valid pointers.");
 
     #ifdef _WIN32
-    GetConsoleScreenBufferInfo(_outputHandle, &_consoleScreenBufferInfo);
+    GetConsoleScreenBufferInfo(_gtuiOutputHandle, &_gtuiConsoleScreenBufferInfo);
 
-    *outX = _consoleScreenBufferInfo.srWindow.Right - _consoleScreenBufferInfo.srWindow.Left + 1;
-    *outY = _consoleScreenBufferInfo.srWindow.Bottom - _consoleScreenBufferInfo.srWindow.Top + 1;
+    *outX = _gtuiConsoleScreenBufferInfo.srWindow.Right - _gtuiConsoleScreenBufferInfo.srWindow.Left + 1;
+    *outY = _gtuiConsoleScreenBufferInfo.srWindow.Bottom - _gtuiConsoleScreenBufferInfo.srWindow.Top + 1;
     #else
         struct winsize w;
         ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -262,44 +276,46 @@ void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY)
 
 void gtuiTerminate()
 {
-    GTUI_ASSERT(_initialized, "you must first initialize GTUI to call gtuiTerminate().");
+    GTUI_ASSERT(_gtuiInitialized, "you must first initialize GTUI to call gtuiTerminate().");
 
     #ifdef _WIN32
-    SetConsoleMode(_outputHandle, _originalOutputMode);
-    SetConsoleMode(_inputHandle, _originalInputMode);
+    SetConsoleMode(_gtuiOutputHandle, _gtuiOriginalOutputMode);
+    SetConsoleMode(_gtuiInputHandle, _gtuiOriginalInputMode);
     #else
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &originalTermiosConf);
     #endif
 
-    _initialized = 0;
+    _gtuiInitialized = 0;
 }
 
 void gtuiSetBlockingInput(char block, uint16_t tick)
 {
     //Windows will manage this directly in the event polling function
 
-    _nonBlockingInputDelay = tick;
+    _gtuiNonBlockingInputDelay = tick;
 
-    if (_isInputBlocking == block)
+    if (_gtuiIsInputBlocking == block)
         return;
-    _isInputBlocking = !_isInputBlocking;
+    _gtuiIsInputBlocking = !_gtuiIsInputBlocking;
 
     #ifndef _WIN32
     struct termios conf;
     tcgetattr(STDIN_FILENO, &conf);
-    conf.c_cc[VMIN] = _isInputBlocking == 1;
+    conf.c_cc[VMIN] = _gtuiIsInputBlocking == 1;
     #endif
 }
 
 GTUIEvent gtuiGetInput()
 {
+    GTUIEvent event = { GTUI_EVENT_NULL, 0 };
+
     #ifdef _WIN32
     //_kbhit might have stored in its buffer some chars that Windows event queue has already cleared, because _kbhit could've grabbed it all in 1 operation while the actual bytes might be more.
     if (!_kbhit())
     {
-        if (WaitForSingleObject(_inputHandle, _isInputBlocking ? INFINITE : _nonBlockingInputDelay) != WAIT_OBJECT_0)
+        if (WaitForSingleObject(_gtuiInputHandle, _gtuiIsInputBlocking ? INFINITE : _gtuiNonBlockingInputDelay) != WAIT_OBJECT_0)
         {
-            return (GTUIEvent) { GTUI_EVENT_NULL, 0 };
+            return event;
         }
     }
 
@@ -313,13 +329,13 @@ GTUIEvent gtuiGetInput()
         if (c == '\033')
         {
             //If there is another character in the stream
-            if (WaitForSingleObject(_inputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 && _kbhit())
+            if (WaitForSingleObject(_gtuiInputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 && _kbhit())
             {
                 char sequence[2] = { 0 };
                 _read(_fileno(stdin), sequence, 1);
 
                 if (sequence[0] == '[' &&
-                    WaitForSingleObject(_inputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 &&
+                    WaitForSingleObject(_gtuiInputHandle, 2 /*Let's wait a few milliseconds for the next char in the sequence*/) == WAIT_OBJECT_0 &&
                     _kbhit())
                 {
                     _read(_fileno(stdin), sequence + 1, 1);
@@ -327,18 +343,19 @@ GTUIEvent gtuiGetInput()
 
                 switch (sequence[1])
                 {
-                case 'A': return (GTUIEvent) { GTUI_EVENT_ESC_UP,    0 };
-                case 'B': return (GTUIEvent) { GTUI_EVENT_ESC_DOWN,  0 };
-                case 'C': return (GTUIEvent) { GTUI_EVENT_ESC_RIGHT, 0 };
-                case 'D': return (GTUIEvent) { GTUI_EVENT_ESC_LEFT,  0 };
-                default:  return (GTUIEvent) { GTUI_EVENT_NULL,      0 }; //Unknown escape sequence
+                case 'A': event.type = GTUI_EVENT_ESC_UP; return event;
+                case 'B': event.type = GTUI_EVENT_ESC_DOWN; return event;
+                case 'C': event.type = GTUI_EVENT_ESC_RIGHT; return event;
+                case 'D': event.type = GTUI_EVENT_ESC_LEFT; return event;
+                default: return event;; //Unknown escape sequence
                 }
             }
 
             //If not it is an escape char
             else
             {
-                return (GTUIEvent){ GTUI_EVENT_ESCAPE, 0 };
+                event.type = GTUI_EVENT_ESCAPE;
+                return event;
             }
         }
 
@@ -346,10 +363,10 @@ GTUIEvent gtuiGetInput()
         {
             switch (c)
             {
-            case '\r': return (GTUIEvent) { GTUI_EVENT_ENTER,     0 };
-            case 127:  return (GTUIEvent) { GTUI_EVENT_BACKSPACE, 0 };
-            case 8:    return (GTUIEvent) { GTUI_EVENT_BACKSPACE, 0 };
-            default:   return (GTUIEvent) { GTUI_EVENT_KEY,       c };
+            case '\r': event.type = GTUI_EVENT_ENTER; return event;
+            case 127:  event.type = GTUI_EVENT_BACKSPACE; return event;
+            case 8:    event.type = GTUI_EVENT_BACKSPACE; return event;
+            default:   event.type = GTUI_EVENT_KEY; event.key = c; return event;
             }
         }
     }
@@ -359,20 +376,22 @@ GTUIEvent gtuiGetInput()
     {
         INPUT_RECORD ir;
         DWORD readCount;
-        ReadConsoleInput(_inputHandle, &ir, 1, &readCount);
+        ReadConsoleInput(_gtuiInputHandle, &ir, 1, &readCount);
 
         if (ir.EventType == WINDOW_BUFFER_SIZE_EVENT)
         {
-            return (GTUIEvent) { GTUI_EVENT_RESIZE, 0 };
+            event.type = GTUI_EVENT_RESIZE;
+            return event;
         }
 
         else
         {
-            return (GTUIEvent) { GTUI_EVENT_NULL, 0 }; //Unknown event
+            return event; //Unknown event
         }
     }
     #else
     //unix is to be implemented.
+    return event;
     #endif
 }
 #endif
