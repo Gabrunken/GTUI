@@ -88,6 +88,11 @@
 #define GTUI_ESC_FG_BRIGHT_WHITE   "\033[97m"
 #define GTUI_ESC_BG_BRIGHT_WHITE   "\033[107m"
 
+#define GTUI_ESC_FG_24_BIT_COLOR(r, g, b) "\033[38;2;" r ";" g ";" b "m"
+
+#define GTUI_ESC_DISABLE_LINE_WRAP "\033[?7l"
+#define GTUI_ESC_ENABLE_LINE_WRAP  "\033[?7h"
+
 #define GTUI_ESC_ENABLE_CURSOR  "\033[?25h"
 #define GTUI_ESC_DISABLE_CURSOR "\033[?25l"
 
@@ -129,6 +134,7 @@ void gtuiTerminate();
 
 //Creates an escape sequence to move the cursor at the specified position, copying it in the out parameter.
 void gtuiGetMoveCursorCode(uint16_t x, uint16_t y, char* out);
+void gtuiGet24BitColorCode(uint8_t r, uint8_t g, uint8_t b);
 void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY);
 
 GTUIEvent gtuiGetInput();
@@ -253,6 +259,25 @@ void gtuiGetMoveCursorCode(uint16_t x, uint16_t y, char* out)
    	snprintf(str, sizeof(str), "\033[%d;%dH\0", y + 1, x + 1);
 
    	memcpy(out, str, strlen(str));
+}
+
+void gtuiGet24BitColorCode(uint8_t r, uint8_t g, uint8_t b, char isBackground, char* out)
+{
+	GTUI_ASSERT(_gtuiInitialized, "you must first initialize GTUI.");
+	GTUI_ASSERT(out, "gtuiGet24BitColorCode: out parameter must not be NULL.");
+
+	char str[50];
+	if (!isBackground)
+	{
+		snprintf(str, sizeof(str), "\033[38;2;%d;%d;%dm", r, g, b);
+	}
+
+	else
+	{
+		snprintf(str, sizeof(str), "\033[48;2;%d;%d;%dm", r, g, b);
+	}
+
+	memcpy(out, str, strlen(str));
 }
 
 void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY)
