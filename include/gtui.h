@@ -135,7 +135,7 @@ void gtuiTerminate();
 
 //Creates an escape sequence to move the cursor at the specified position, copying it in the out parameter.
 void gtuiGetMoveCursorCode(uint16_t x, uint16_t y, char* out);
-void gtuiGet24BitColorCode(uint8_t r, uint8_t g, uint8_t b);
+void gtuiGet24BitColorCode(uint8_t r, uint8_t g, uint8_t b, char isBackground, char* out);
 void gtuiGetConsoleSize(uint16_t* outX, uint16_t* outY);
 
 GTUIEvent gtuiGetInput();
