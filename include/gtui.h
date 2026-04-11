@@ -89,6 +89,7 @@
 #define GTUI_ESC_BG_BRIGHT_WHITE   "\033[107m"
 
 #define GTUI_ESC_FG_24_BIT_COLOR(r, g, b) "\033[38;2;" r ";" g ";" b "m"
+#define GTUI_ESC_BG_24_BIT_COLOR(r, g, b) "\033[48;2;" r ";" g ";" b "m"
 
 #define GTUI_ESC_DISABLE_LINE_WRAP "\033[?7l"
 #define GTUI_ESC_ENABLE_LINE_WRAP  "\033[?7h"
