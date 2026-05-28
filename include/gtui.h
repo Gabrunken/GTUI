@@ -121,7 +121,7 @@ typedef enum
 typedef struct
 {
     GTUIEventType type;
-    char key; //represent an ASCII printable character, if the event type is GTUI_EVENT_KEY.
+    unsigned char key; //represent an ASCII printable character, if the event type is GTUI_EVENT_KEY.
 } GTUIEvent;
 
 #ifdef __cplusplus
