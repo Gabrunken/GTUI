@@ -1,3 +1,5 @@
+/*Useful resources: https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html*/
+
 #pragma once
 
 #include <stdint.h>
